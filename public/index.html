@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NASA FIRMS Active Fire Dashboard</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fafaf8;
+    --bg-panel: #ffffff;
+    --bg-field: #f4f3f0;
+    --border: #e2e0da;
+    --border-light: #eceae4;
+    --text: #1a1a18;
+    --text-secondary: #6b6960;
+    --text-tertiary: #9b978d;
+    --accent: #b84c2e;
+    --accent-light: #f3e8e4;
+    --orange-mid: #c87a30;
+    --orange-light: #dba54e;
+    --yellow-warm: #c4a333;
+    --green-muted: #5a8a5e;
+    --blue-muted: #4a7a9b;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  header {
+    height: 52px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1000;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .header-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+
+  .header-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+  }
+
+  .header-source {
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+
+  .header-source a {
+    color: var(--blue-muted);
+    text-decoration: none;
+  }
+
+  .header-source a:hover { text-decoration: underline; }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .status-circle {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green-muted);
+  }
+
+  .status-circle.sample { background: var(--orange-mid); }
+
+  .timestamp {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+
+  .layout {
+    display: flex;
+    height: calc(100vh - 52px);
+  }
+
+  .sidebar {
+    width: 300px;
+    min-width: 300px;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .panel-heading {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-tertiary);
+    margin-bottom: 12px;
+  }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .metric {
+    background: var(--bg-field);
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+
+  .metric.full { grid-column: 1 / -1; }
+
+  .metric-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.1;
+  }
+
+  .metric-label {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-top: 3px;
+  }
+
+  .control-group { margin-bottom: 14px; }
+  .control-group:last-child { margin-bottom: 0; }
+
+  .control-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+
+  .btn-group {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+
+  .btn-group .btn {
+    flex: 1;
+    padding: 6px 0;
+    background: var(--bg-panel);
+    border: none;
+    border-right: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    text-align: center;
+  }
+
+  .btn-group .btn:last-child { border-right: none; }
+  .btn-group .btn:hover { background: var(--bg-field); color: var(--text); }
+  .btn-group .btn.active { background: var(--text); color: var(--bg-panel); }
+
+  .dist-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .dist-row:last-child { margin-bottom: 0; }
+
+  .dist-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    width: 58px;
+    flex-shrink: 0;
+  }
+
+  .dist-bar-bg {
+    flex: 1;
+    height: 8px;
+    background: var(--bg-field);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .dist-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.4s ease;
+  }
+
+  .dist-bar.high { background: var(--accent); }
+  .dist-bar.nominal { background: var(--orange-mid); }
+  .dist-bar.low { background: var(--text-tertiary); }
+
+  .dist-count {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-tertiary);
+    width: 48px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .detection-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .detection-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.12s ease;
+  }
+
+  .detection-item:hover { background: var(--bg-field); }
+
+  .detection-rank {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-tertiary);
+    width: 16px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .detection-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .detection-info { flex: 1; min-width: 0; }
+
+  .detection-coords {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+  }
+
+  .detection-meta {
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+
+  .detection-frp {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .notice {
+    background: #fef9f0;
+    border: 1px solid #ede0c8;
+    border-radius: 5px;
+    padding: 10px 12px;
+    font-size: 11px;
+    color: var(--orange-mid);
+    line-height: 1.45;
+    display: none;
+  }
+
+  .notice.visible { display: block; }
+
+  .map-area { flex: 1; position: relative; }
+
+  #map { width: 100%; height: 100%; background: #e8e4dc; }
+
+  .leaflet-control-zoom a {
+    background: var(--bg-panel) !important;
+    color: var(--text-secondary) !important;
+    border-color: var(--border) !important;
+    width: 30px !important;
+    height: 30px !important;
+    line-height: 30px !important;
+  }
+
+  .leaflet-control-zoom a:hover {
+    background: var(--bg-field) !important;
+    color: var(--text) !important;
+  }
+
+  .leaflet-control-zoom {
+    border: 1px solid var(--border) !important;
+    border-radius: 6px !important;
+    overflow: hidden;
+    box-shadow: var(--shadow-md) !important;
+  }
+
+  .leaflet-control-attribution {
+    background: rgba(255,255,255,0.88) !important;
+    font-family: 'IBM Plex Sans', sans-serif !important;
+    font-size: 10px !important;
+    color: var(--text-tertiary) !important;
+  }
+
+  .leaflet-popup-content-wrapper {
+    background: var(--bg-panel) !important;
+    color: var(--text) !important;
+    border-radius: 6px !important;
+    box-shadow: var(--shadow-md), 0 4px 20px rgba(0,0,0,0.08) !important;
+    border: 1px solid var(--border) !important;
+  }
+
+  .leaflet-popup-tip {
+    background: var(--bg-panel) !important;
+    box-shadow: none !important;
+  }
+
+  .leaflet-popup-content {
+    font-family: 'IBM Plex Sans', sans-serif !important;
+    font-size: 13px !important;
+    margin: 14px 16px !important;
+    line-height: 1.5 !important;
+    min-width: 200px;
+  }
+
+  .popup-header {
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text);
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .popup-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 3px 14px;
+  }
+
+  .popup-k { font-size: 11px; color: var(--text-tertiary); }
+
+  .popup-v {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .popup-v.hot { color: var(--accent); }
+  .popup-v.warm { color: var(--orange-mid); }
+  .popup-v.cool { color: var(--text-secondary); }
+
+  .map-legend {
+    position: absolute;
+    bottom: 28px;
+    right: 12px;
+    z-index: 999;
+    background: rgba(255,255,255,0.94);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    box-shadow: var(--shadow-md);
+    backdrop-filter: blur(6px);
+  }
+
+  .legend-title {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+  }
+
+  .legend-entries { display: flex; flex-direction: column; gap: 5px; }
+
+  .legend-entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .loading-screen {
+    position: absolute;
+    inset: 0;
+    background: rgba(250, 250, 248, 0.95);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    transition: opacity 0.3s ease;
+  }
+
+  .loading-screen.hidden { opacity: 0; pointer-events: none; }
+
+  .loader {
+    width: 28px; height: 28px;
+    border: 2px solid var(--border);
+    border-top-color: var(--text-secondary);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loader-text { font-size: 12px; color: var(--text-tertiary); margin-top: 10px; }
+
+  .sidebar::-webkit-scrollbar { width: 3px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  @media (max-width: 768px) { .sidebar { display: none; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="header-title">Active Fire Dashboard</div>
+    <div class="header-divider"></div>
+    <div class="header-source">Data: <a href="https://firms.modaps.eosdis.nasa.gov/" target="_blank" rel="noopener">NASA FIRMS</a> VIIRS (Suomi NPP)</div>
+  </div>
+  <div class="header-right">
+    <div class="status-indicator">
+      <div class="status-circle" id="status-dot"></div>
+      <span id="status-label">Connecting</span>
+    </div>
+    <div class="timestamp" id="clock"></div>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="sidebar">
+
+    <div class="panel">
+      <div class="panel-heading">Summary</div>
+      <div class="metrics">
+        <div class="metric">
+          <div class="metric-value" id="m-total">--</div>
+          <div class="metric-label">Detections</div>
+        </div>
+        <div class="metric">
+          <div class="metric-value" id="m-high">--</div>
+          <div class="metric-label">High confidence</div>
+        </div>
+        <div class="metric">
+          <div class="metric-value" id="m-avg-frp">--</div>
+          <div class="metric-label">Mean FRP (MW)</div>
+        </div>
+        <div class="metric">
+          <div class="metric-value" id="m-max-frp">--</div>
+          <div class="metric-label">Peak FRP (MW)</div>
+        </div>
+        <div class="metric full">
+          <div class="metric-value" id="m-last-acq" style="font-size:13px;">--</div>
+          <div class="metric-label">Latest acquisition</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-heading">Filters</div>
+      <div class="control-group">
+        <div class="control-label">Time window</div>
+        <div class="btn-group" id="time-btns">
+          <button class="btn active" data-v="24h">24 hr</button>
+          <button class="btn" data-v="48h">48 hr</button>
+          <button class="btn" data-v="7d">7 day</button>
+        </div>
+      </div>
+      <div class="control-group">
+        <div class="control-label">Confidence</div>
+        <div class="btn-group" id="conf-btns">
+          <button class="btn active" data-v="all">All</button>
+          <button class="btn" data-v="high">High</button>
+          <button class="btn" data-v="nominal">Nom</button>
+          <button class="btn" data-v="low">Low</button>
+        </div>
+      </div>
+      <div class="control-group">
+        <div class="control-label">Observation</div>
+        <div class="btn-group" id="dn-btns">
+          <button class="btn active" data-v="all">All</button>
+          <button class="btn" data-v="D">Day</button>
+          <button class="btn" data-v="N">Night</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-heading">Confidence distribution</div>
+      <div class="dist-row">
+        <span class="dist-label">High</span>
+        <div class="dist-bar-bg"><div class="dist-bar high" id="bar-h" style="width:0%"></div></div>
+        <span class="dist-count" id="cnt-h">0</span>
+      </div>
+      <div class="dist-row">
+        <span class="dist-label">Nominal</span>
+        <div class="dist-bar-bg"><div class="dist-bar nominal" id="bar-n" style="width:0%"></div></div>
+        <span class="dist-count" id="cnt-n">0</span>
+      </div>
+      <div class="dist-row">
+        <span class="dist-label">Low</span>
+        <div class="dist-bar-bg"><div class="dist-bar low" id="bar-l" style="width:0%"></div></div>
+        <span class="dist-count" id="cnt-l">0</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-heading">Highest FRP detections</div>
+      <div class="detection-list" id="top-list"></div>
+    </div>
+
+    <div class="panel">
+      <div class="notice" id="notice"></div>
+    </div>
+
+  </div>
+
+  <div class="map-area">
+    <div id="map"></div>
+    <div class="map-legend">
+      <div class="legend-title">Fire radiative power</div>
+      <div class="legend-entries">
+        <div class="legend-entry"><div class="legend-dot" style="background:#b84c2e;"></div><span>&gt; 100 MW</span></div>
+        <div class="legend-entry"><div class="legend-dot" style="background:#c87a30;"></div><span>30 &ndash; 100 MW</span></div>
+        <div class="legend-entry"><div class="legend-dot" style="background:#dba54e;"></div><span>10 &ndash; 30 MW</span></div>
+        <div class="legend-entry"><div class="legend-dot" style="background:#c4a333;"></div><span>&lt; 10 MW</span></div>
+      </div>
+    </div>
+    <div class="loading-screen" id="loading">
+      <div class="loader"></div>
+      <div class="loader-text">Loading satellite data</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  let allData = [], filtered = [], fireLayer, map;
+  let filters = { time:'24h', confidence:'all', dn:'all' };
+
+  map = L.map('map', { center:[15,0], zoom:3, minZoom:2, maxZoom:14 });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    subdomains:'abcd', maxZoom:19
+  }).addTo(map);
+  fireLayer = L.layerGroup().addTo(map);
+
+  function tick() {
+    document.getElementById('clock').textContent =
+      new Date().toISOString().replace('T',' ').slice(0,19)+' UTC';
+  }
+  tick(); setInterval(tick,1000);
+
+  function parseCSV(text) {
+    const lines = text.trim().split('\n');
+    if (lines.length<2) return [];
+    const hdr = lines[0].split(',').map(s=>s.trim());
+    const out = [];
+    for (let i=1;i<lines.length;i++){
+      const v=lines[i].split(',');
+      if(v.length!==hdr.length) continue;
+      const r={};
+      hdr.forEach((h,j)=>r[h]=v[j]?.trim());
+      r.latitude=parseFloat(r.latitude);
+      r.longitude=parseFloat(r.longitude);
+      r.brightness=parseFloat(r.brightness||r.bright_ti4||0);
+      r.frp=parseFloat(r.frp||0);
+      r.confidence=(r.confidence||'').toLowerCase();
+      r.daynight=r.daynight||'';
+      r.acq_date=r.acq_date||'';
+      r.acq_time=r.acq_time||'';
+      r.satellite=r.satellite||'';
+      if(!isNaN(r.latitude)&&!isNaN(r.longitude)) out.push(r);
+    }
+    return out;
+  }
+
+  async function load(tw) {
+    const el={loading:document.getElementById('loading'),notice:document.getElementById('notice'),
+      dot:document.getElementById('status-dot'),label:document.getElementById('status-label')};
+    el.loading.classList.remove('hidden');
+    el.notice.classList.remove('visible');
+    el.label.textContent='Fetching';
+    try {
+      const res=await fetch('/api/fires?range='+tw);
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      const txt=await res.text();
+      if(!txt||txt.length<100) throw new Error('Empty');
+      const d=parseCSV(txt);
+      if(!d.length) throw new Error('Parse failed');
+      allData=d;
+      el.dot.className='status-circle';
+      const cacheHdr=res.headers.get('X-Cache');
+      el.label.textContent=cacheHdr==='HIT'?'Live (cached)':'Live';
+    } catch(err) {
+      el.notice.textContent='Could not reach backend proxy. Showing representative sample data.';
+      el.notice.classList.add('visible');
+      el.dot.className='status-circle sample';
+      el.label.textContent='Sample data';
+      allData=makeSample(tw);
+    }
+    el.loading.classList.add('hidden');
+    applyFilters();
+  }
+
+  function makeSample(tw) {
+    const zones=[
+      {lat:[-12,-2],lon:[-62,-48],w:.35},{lat:[-8,8],lon:[18,32],w:.3},
+      {lat:[8,20],lon:[96,110],w:.15},{lat:[55,65],lon:[90,140],w:.08},
+      {lat:[-38,-22],lon:[120,150],w:.05},{lat:[33,47],lon:[-122,-108],w:.04},
+      {lat:[36,42],lon:[-8,28],w:.03}
+    ];
+    const base=tw==='24h'?2000:tw==='48h'?4000:12000;
+    const hrs=tw==='24h'?24:tw==='48h'?48:168;
+    const out=[];const now=Date.now();
+    for(const z of zones){
+      const n=Math.floor(base*z.w);
+      for(let i=0;i<n;i++){
+        const la=z.lat[0]+Math.random()*(z.lat[1]-z.lat[0])+(Math.random()-.5)*.5;
+        const lo=z.lon[0]+Math.random()*(z.lon[1]-z.lon[0])+(Math.random()-.5)*.5;
+        const r=Math.random();
+        const conf=r<.25?'high':r<.7?'nominal':'low';
+        const frp=conf==='high'?20+Math.random()*280:conf==='nominal'?5+Math.random()*60:1+Math.random()*20;
+        const t=new Date(now-Math.random()*hrs*3600000);
+        out.push({latitude:la,longitude:lo,brightness:300+Math.random()*100,
+          frp:Math.round(frp*10)/10,confidence:conf,
+          daynight:Math.random()>.5?'D':'N',
+          acq_date:t.toISOString().split('T')[0],
+          acq_time:String(t.getHours()).padStart(2,'0')+String(t.getMinutes()).padStart(2,'0'),
+          satellite:'Suomi NPP'});
+      }
+    }
+    return out;
+  }
+
+  function applyFilters(){
+    filtered=allData.filter(d=>{
+      if(filters.confidence!=='all'&&d.confidence!==filters.confidence) return false;
+      if(filters.dn!=='all'&&d.daynight!==filters.dn) return false;
+      return true;
+    });
+    render();stats();dist();topList();
+  }
+
+  function clr(frp){
+    if(frp>100) return'#b84c2e';
+    if(frp>30) return'#c87a30';
+    if(frp>10) return'#dba54e';
+    return'#c4a333';
+  }
+
+  function rad(frp,z){
+    const b=frp>100?5:frp>30?4:frp>10?3:2;
+    return b*Math.max(.5,Math.min(2,z/5));
+  }
+
+  function render(){
+    fireLayer.clearLayers();
+    const z=map.getZoom();
+    let data=filtered;
+    if(data.length>15000){const step=Math.ceil(data.length/15000);data=data.filter((_,i)=>i%step===0);}
+    data.forEach(d=>{
+      const c=clr(d.frp);
+      const cls=d.confidence==='high'?'hot':d.confidence==='nominal'?'warm':'cool';
+      const m=L.circleMarker([d.latitude,d.longitude],{
+        radius:rad(d.frp,z),fillColor:c,color:c,weight:0,fillOpacity:.7
+      });
+      m.bindPopup(`<div class="popup-header">Fire detection</div>
+        <div class="popup-grid">
+          <span class="popup-k">Latitude</span><span class="popup-v">${d.latitude.toFixed(4)}</span>
+          <span class="popup-k">Longitude</span><span class="popup-v">${d.longitude.toFixed(4)}</span>
+          <span class="popup-k">FRP</span><span class="popup-v ${cls}">${d.frp} MW</span>
+          <span class="popup-k">Brightness</span><span class="popup-v">${d.brightness.toFixed(1)} K</span>
+          <span class="popup-k">Confidence</span><span class="popup-v">${d.confidence}</span>
+          <span class="popup-k">Acquired</span><span class="popup-v">${d.acq_date} ${d.acq_time}</span>
+          <span class="popup-k">Day/Night</span><span class="popup-v">${d.daynight==='D'?'Day':'Night'}</span>
+          <span class="popup-k">Satellite</span><span class="popup-v">${d.satellite}</span>
+        </div>`,{maxWidth:240});
+      fireLayer.addLayer(m);
+    });
+  }
+
+  map.on('zoomend',render);
+
+  function stats(){
+    const n=filtered.length;
+    const h=filtered.filter(d=>d.confidence==='high').length;
+    const avg=n?(filtered.reduce((s,d)=>s+d.frp,0)/n).toFixed(1):'--';
+    const mx=n?Math.max(...filtered.map(d=>d.frp)).toFixed(1):'--';
+    const dates=filtered.map(d=>d.acq_date+' '+d.acq_time).sort();
+    document.getElementById('m-total').textContent=n.toLocaleString();
+    document.getElementById('m-high').textContent=h.toLocaleString();
+    document.getElementById('m-avg-frp').textContent=avg;
+    document.getElementById('m-max-frp').textContent=mx;
+    document.getElementById('m-last-acq').textContent=dates.length?dates[dates.length-1]:'--';
+  }
+
+  function dist(){
+    const h=filtered.filter(d=>d.confidence==='high').length;
+    const n=filtered.filter(d=>d.confidence==='nominal').length;
+    const l=filtered.filter(d=>d.confidence==='low').length;
+    const mx=Math.max(h,n,l,1);
+    document.getElementById('bar-h').style.width=(h/mx*100)+'%';
+    document.getElementById('bar-n').style.width=(n/mx*100)+'%';
+    document.getElementById('bar-l').style.width=(l/mx*100)+'%';
+    document.getElementById('cnt-h').textContent=h.toLocaleString();
+    document.getElementById('cnt-n').textContent=n.toLocaleString();
+    document.getElementById('cnt-l').textContent=l.toLocaleString();
+  }
+
+  function topList(){
+    const el=document.getElementById('top-list');
+    const top=[...filtered].sort((a,b)=>b.frp-a.frp).slice(0,8);
+    el.innerHTML=top.map((d,i)=>`<div class="detection-item" data-lat="${d.latitude}" data-lon="${d.longitude}">
+      <span class="detection-rank">${i+1}</span>
+      <div class="detection-swatch" style="background:${clr(d.frp)}"></div>
+      <div class="detection-info">
+        <div class="detection-coords">${d.latitude.toFixed(3)}, ${d.longitude.toFixed(3)}</div>
+        <div class="detection-meta">${d.acq_date} ${d.acq_time} &middot; ${d.confidence}</div>
+      </div>
+      <span class="detection-frp">${d.frp}</span>
+    </div>`).join('');
+    el.querySelectorAll('.detection-item').forEach(e=>{
+      e.addEventListener('click',()=>{
+        map.flyTo([parseFloat(e.dataset.lat),parseFloat(e.dataset.lon)],8,{duration:1});
+      });
+    });
+  }
+
+  function wire(id,key){
+    document.getElementById(id).querySelectorAll('.btn').forEach(b=>{
+      b.addEventListener('click',()=>{
+        document.getElementById(id).querySelectorAll('.btn').forEach(x=>x.classList.remove('active'));
+        b.classList.add('active');
+        filters[key]=b.dataset.v;
+        if(key==='time') load(b.dataset.v); else applyFilters();
+      });
+    });
+  }
+  wire('time-btns','time');
+  wire('conf-btns','confidence');
+  wire('dn-btns','dn');
+
+  load('24h');
+})();
+</script>
+</body>
+</html>

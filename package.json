@@ -1,0 +1,16 @@
+{
+  "name": "wildfire-tracker",
+  "version": "1.0.0",
+  "description": "NASA FIRMS active fire dashboard with backend proxy",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["nasa", "firms", "wildfire", "leaflet"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}
